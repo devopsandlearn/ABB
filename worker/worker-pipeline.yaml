@@ -1,11 +1,7 @@
-# Docker
-# Build and push an image to Azure Container Registry
-# https://docs.microsoft.com/azure/devops/pipelines/languages/docker
-
 trigger:
- paths:
-   include:
-     - worker/*
+  paths:
+    include:
+      - worker/*
 
 resources:
 - repo: self
@@ -17,41 +13,116 @@ variables:
   containerRegistry: 'devopsacr1.azurecr.io'
   dockerfilePath: '$(Build.SourcesDirectory)/result/Dockerfile'
   tag: '$(Build.BuildId)'
+  
+  # SonarQube Configuration
+  sonarQubeServiceConnection: '-sonarqube-connection-id'  # Define  SonarQube service connection ID
+  sonarProjectKey: 'worker'  # Define  SonarQube project key
+  sonarProjectName: 'worker'  # Define  SonarQube project name
+  sonarProjectVersion: '1.0'  # Define  SonarQube project version
+  
+  # Trivy Email Notification
+  dllEmail: 'dll@example.com'  # Email address to send the Trivy scan report to
+  
+  # Key Vault Configuration
+  keyVaultName: '-keyvault-name'  # Azure Key Vault name
+  aksCluster: '-aks-cluster-name'  # AKS Cluster name
 
-  # Agent VM image name
+# Agent VM image name (self hosted agent)
 pool:
- name: 'azureagent'
+  name: 'azureagent'
 
 stages:
+
 - stage: Build
   displayName: Build
   jobs:
   - job: Build
     displayName: Build
     steps:
+    - task: Checkout@1
+      displayName: 'Checkout Code'
+    
+    # SonarQube for Code Quality Check
+    - task: SonarQubePrepare@5
+      inputs:
+        SonarQube: '$(sonarQubeServiceConnection)'
+        scannerMode: 'CLI'
+        configMode: 'file'
+        configFile: 'sonar-project.properties'
+        extraProperties: |
+          sonar.projectKey=$(sonarProjectKey)
+          sonar.projectName=$(sonarProjectName)
+          sonar.projectVersion=$(sonarProjectVersion)
+      displayName: 'Prepare SonarQube Analysis'
+
+    - task: SonarQubeAnalyze@5
+      displayName: 'Run SonarQube Analysis'
+
+    - task: SonarQubePublish@5
+      inputs:
+        pollingTimeoutSec: '300'
+      displayName: 'Publish SonarQube Analysis'
+      condition: succeededOrFailed()
+
+    # Add the SonarQube Quality Gate check here to fail the pipeline if quality is less than 80%
+    - task: SonarQubeQualityGate@5
+      inputs:
+        SonarQube: '$(sonarQubeServiceConnection)'
+        qualityGateStatus: 'Failed'
+      displayName: 'Check SonarQube Quality Gate'
+    
+    # Dockerfile Build
     - task: Docker@2
-      displayName: Build 
+      displayName: 'Build Docker Image'
       inputs:
         containerRegistry: '$(dockerRegistryServiceConnection)'
         repository: '$(imageRepository)'
         command: 'build'
         Dockerfile: 'worker/Dockerfile'
         tags: '$(tag)'
-- stage: push
-  displayName: push
+
+- stage: TrivyScan
+  displayName: Trivy Vulnerability Scan
+  jobs:
+  - job: TrivyScan
+    displayName: 'Trivy Vulnerability Scan'
+    steps:
+    - script: |
+        # Install Trivy
+        sudo apt-get update
+        sudo apt-get install -y wget
+        wget https://github.com/aquasecurity/trivy/releases/download/v0.24.0/trivy_0.24.0_Linux-64bit.deb
+        sudo dpkg -i trivy_0.24.0_Linux-64bit.deb
+
+        # Run Trivy scan
+        trivy image --severity HIGH,CRITICAL --no-progress -f json -o trivy-report.json $(containerRegistry)/$(imageRepository):$(tag)
+
+        # Check if vulnerabilities are found
+        if grep -q '"Severity": "HIGH"\|"Severity": "CRITICAL"' trivy-report.json; then
+          echo "High or Critical vulnerabilities found, failing the pipeline."
+          cat trivy-report.json > trivy-report.txt
+          # Send email (replace placeholders with actual DLL and email server details)
+          mail -s "Trivy Scan Report: Critical Vulnerabilities Found" $(dllEmail) < trivy-report.txt
+          exit 1
+        fi
+      displayName: 'Run Trivy Vulnerability Scan'
+
+- stage: Push
+  displayName: Push
   jobs:
   - job: push
     displayName: push
     steps:
     - task: Docker@2
-      displayName: push
+      displayName: 'Push Docker Image'
       inputs:
         containerRegistry: '$(dockerRegistryServiceConnection)'
         repository: '$(imageRepository)'
         command: 'push'
         tags: '$(tag)'
+
 - stage: Update
-  displayName: Update 
+  displayName: Update
   jobs:
   - job: Update
     displayName: Update
@@ -60,3 +131,25 @@ stages:
       inputs:
         scriptPath: 'scripts/updateK8sManifests.sh'
         args: 'vote $(imageRepository) $(tag)'
+
+- stage: Deploy
+  displayName: Deploy to AKS
+  jobs:
+  - job: Deploy
+    displayName: 'Deploy to AKS'
+    steps:
+    - task: AzureKeyVault@2
+      inputs:
+        connectedServiceName: 'AzureServiceConnection'
+        keyVaultName: '$(keyVaultName)'
+        secretsFilter: 'secret-name'
+      displayName: 'Retrieve Secrets from Azure Key Vault'
+
+    - task: Kubernetes@1
+      inputs:
+        connectionType: 'Azure Kubernetes Service'
+        kubernetesCluster: '$(aksCluster)'
+        namespace: '$(namespace)'
+        command: 'apply'
+        arguments: '-f k8s/deployment.yaml'
+      displayName: 'Deploy to AKS'
