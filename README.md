@@ -1,6 +1,6 @@
 # ABB
 
-TASK 1: GitHub Repository: Branching and Workflow
+**TASK 1: GitHub Repository: Branching and Workflow**
 
 Objective
 Demonstrating the creation of a GitHub repository, implementation of branching strategies, pull requests, and code reviews.
@@ -22,7 +22,7 @@ once the rewiewer approves we can merge the code to the base branch
 ![image](https://github.com/user-attachments/assets/ff97209f-5b7a-4c30-885b-4c598fce7481)
 
 
-TASK 2, 3, 6, 7, 8, 12, 13, 14, 15,  CI CD Pipelines, Variable groups and variables, sonarqube, Trivy, dockerbuild, Docker image scan (Trivy), dynamic update of the image tag, Azure key vault integration, AKS deployment.
+**TASK 2, 3, 6, 7, 8, 12, 13, 14, 15,  CI CD Pipelines, Variable groups and variables, sonarqube, Trivy, dockerbuild, Docker image scan (Trivy), dynamic update of the image tag, Azure key vault integration, AKS deployment.**
  
 NOTE: Since my free trail of azure subscription is expired and my credit card is not supporting pay as you go payments, i have taken my POC pipelines and attaching the screenshots where few stages are missing but the explation is given. 
 
@@ -70,7 +70,7 @@ Here in this image it is shown that that docker image is built and pushed onto A
 
 Debugging: If pipeline fails due to some reason first check the logs, and if something fro m the env variable session is missing or incorrect, then do the correction accordingly. 
 
-TASK 15: Kubernetes networking issue:
+**TASK 15: Kubernetes networking issue:**
 1. Issue Description
 The issue occurred within the AKS cluster, where the pods could not communicate with external services, such as a database. This resulted in network timeouts and connectivity failures.
 
