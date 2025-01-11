@@ -15,5 +15,23 @@ spec:
         app: worker
     spec:
       containers:
-      - image: dockersamples/examplevotingapp_worker
-        name: worker
+      - name: worker
+        image: dockersamples/examplevotingapp_worker
+        ports:
+          - containerPort: 80
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 80
+          initialDelaySeconds: 10   # Wait 10 seconds before starting the probe
+          periodSeconds: 5          # Probe every 5 seconds
+          failureThreshold: 3       # Fail after 3 unsuccessful probes
+          successThreshold: 1       # Success after 1 successful probe
+        readinessProbe:
+          httpGet:
+            path: /readiness
+            port: 80
+          initialDelaySeconds: 5    # Wait 5 seconds before starting the probe
+          periodSeconds: 5          # Probe every 5 seconds
+          failureThreshold: 3       # Fail after 3 unsuccessful probes
+          successThreshold: 1       # Success after 1 successful probe
