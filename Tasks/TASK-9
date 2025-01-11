@@ -1,0 +1,158 @@
+Step 1: Create a New Helm Chart
+
+1.	Create a new directory for the chart: To create a Helm chart, run this command:
+
+helm create myapp-helm-chart
+
+This will generate a basic Helm chart structure with default files and directories.
+After running the above command,  Helm chart structure will look like this:
+
+myapp-helm-chart/
+├── Chart.yaml
+├── values.yaml
+├── charts/
+├── templates/
+│   ├── deployment.yaml
+│   ├── _helpers.tpl
+│   ├── service.yaml
+│   └── ingress.yaml
+└── README.md
+______________________________________________________________________________________________________________
+2.	Files Overview:
+
+o	Chart.yaml: The metadata of  Helm chart, like the chart name, version, and description.
+o	values.yaml: Default values for  Helm chart (like replicas, image names, etc.).
+o	templates/: Contains Kubernetes resource templates (deployment, service, etc.).
+o	_helpers.tpl: Contains helper functions used to generate reusable Kubernetes resource names and other values.
+o	README.md: Document to explain how to use the chart.
+____________________________________________________________________________________________________________________
+Step 2: Customize the Chart Files
+
+Here’s how you can update these files.
+Chart.yaml (Metadata)
+
+apiVersion: v2
+name: myapp-helm-chart
+description: A Helm chart for deploying MyApp to Kubernetes
+type: application
+version: 0.1.0
+appVersion: "1.0"
+
+_____________________________________________________________________________________________________________
+values.yaml (User Configuration)
+The values.yaml file allows users to specify variables like image tags, number of replicas, and other configurations.
+
+replicaCount: 1
+image:
+  repository: dockersamples/examplevotingapp_worker
+  pullPolicy: Always
+  tag: latest
+
+service:
+  type: ClusterIP
+  port: 80
+
+ingress:
+  enabled: false
+  path: /
+  host: myapp.local
+
+
+•	replicaCount: The number of replicas for the deployment.
+•	image: The Docker image details.
+•	service: Configuration for the Kubernetes service.
+•	ingress: Optional ingress configuration.
+____________________________________________________________________________________________________
+_helpers.tpl (Helper Templates)
+ define reusable logic to generate resource names in this file.
+
+{{- define "myapp-helm-chart.name" -}}
+{{ .Release.Name }}-myapp
+{{- end -}}
+
+{{- define "myapp-helm-chart.fullname" -}}
+{{ .Release.Name }}-{{ .Chart.Name }}
+{{- end -}}
+
+•	myapp-helm-chart.name: Returns the release name combined with myapp (e.g., my-release-myapp).
+•	myapp-helm-chart.fullname: Returns the full name of the release combined with the chart name (e.g., my-release-myapp-helm-chart).
+These helpers will be used in the deployment and service files to dynamically generate names.
+________________________________________________________________________________________________________________________
+deployment.yaml (Deployment Resource Template)
+This file defines the Kubernetes deployment for  app. It will reference the values from values.yaml to customize the deployment.
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "myapp-helm-chart.fullname" . }}
+  labels:
+    app: {{ include "myapp-helm-chart.name" . }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ include "myapp-helm-chart.name" . }}
+  template:
+    metadata:
+      labels:
+        app: {{ include "myapp-helm-chart.name" . }}
+    spec:
+      containers:
+        - name: worker
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - containerPort: 80
+
+
+•	This deployment will use the helper functions for dynamic name generation.
+•	The replica count and image configurations come from values.yaml.
+_______________________________________________________________________________________________
+service.yaml (Service Resource Template)
+
+This file defines the Kubernetes service to expose your application.
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "myapp-helm-chart.fullname" . }}
+  labels:
+    app: {{ include "myapp-helm-chart.name" . }}
+spec:
+  ports:
+    - port: 80
+      targetPort: 80
+  selector:
+    app: {{ include "myapp-helm-chart.name" . }}
+  type: {{ .Values.service.type }}
+
+
+•	The service name and labels are dynamically generated using the helper functions.
+•	The service.type (ClusterIP, LoadBalancer, etc.) is set from values.yaml.
+________________________________________
+Step 3: Install and Test the Helm Chart
+1.	Install the Helm chart: To install the chart to a Kubernetes cluster, run:
+
+helm install my-release ./myapp-helm-chart
+
+This will install the chart and deploy the resources to your Kubernetes cluster.
+--------------------------------------------------------------------------------------------------------
+2.	Test the deployment: Once installed, check if the deployment and service are correctly created:
+
+kubectl get deployments
+kubectl get services
+------------------------------------------------------------------------------
+3.	Uninstall the Helm chart: To uninstall the Helm chart:
+
+helm uninstall my-release
+________________________________________
+Step 4: Customization Example
+
+to customize the chart (e.g., change the image version or replica count), they can update values.yaml or use --set flags during installation.
+For example, to set the image tag and replicas:
+
+helm install my-release ./myapp-helm-chart --set image.tag=1.2.3 --set replicaCount=3
+This will deploy 3 replicas of the application with the 1.2.3 image tag.
+________________________________________
+
+
