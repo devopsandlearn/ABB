@@ -1,0 +1,116 @@
+trigger:
+- main
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+variables:
+  imageName: 'my-app'  # Define your image name
+  buildNumber: $(Build.BuildId)  # Use the build number as image tag
+  dllEmail: 'dll@example.com'  # Email address to send the Trivy scan report to
+  keyVaultName: 'your-keyvault-name'  # Azure Key Vault name
+  aksCluster: 'your-aks-cluster-name'  # AKS Cluster name
+  namespace: 'default'  # Kubernetes namespace for deployment
+
+steps:
+
+# 1. Code Checkout
+- task: Checkout@1
+  displayName: 'Checkout Code'
+
+# 2. SonarQube for Code Quality Check
+- task: SonarQubePrepare@5
+  inputs:
+    SonarQube: '$(sonarQubeServiceConnection)'
+    scannerMode: 'CLI'
+    configMode: 'file'
+    configFile: 'sonar-project.properties'
+    extraProperties: |
+      sonar.projectKey=my-app
+      sonar.projectName=my-app
+      sonar.projectVersion=1.0
+  displayName: 'Prepare SonarQube Analysis'
+
+- task: SonarQubeAnalyze@5
+  displayName: 'Run SonarQube Analysis'
+
+- task: SonarQubePublish@5
+  inputs:
+    pollingTimeoutSec: '300'
+  displayName: 'Publish SonarQube Analysis'
+  condition: succeededOrFailed()
+
+# 3. Dockerfile Scan
+- task: Docker@2
+  inputs:
+    containerRegistry: '$(dockerRegistryServiceConnection)'
+    repository: '$(imageName)'
+    command: 'buildAndPush'
+    Dockerfile: '**/Dockerfile'
+    tags: $(buildNumber)  # Using the build number as tag
+  displayName: 'Scan Dockerfile'
+
+# 4. Dockerfile Build
+- task: Docker@2
+  inputs:
+    containerRegistry: '$(dockerRegistryServiceConnection)'
+    repository: '$(imageName)'
+    command: 'build'
+    Dockerfile: '**/Dockerfile'
+    tags: $(buildNumber)  # Using the build number as tag
+  displayName: 'Build Docker Image'
+
+# 5. Trivy Scan (Fail pipeline on vulnerabilities)
+- script: |
+    # Install Trivy
+    sudo apt-get update
+    sudo apt-get install -y wget
+    wget https://github.com/aquasecurity/trivy/releases/download/v0.24.0/trivy_0.24.0_Linux-64bit.deb
+    sudo dpkg -i trivy_0.24.0_Linux-64bit.deb
+
+    # Run Trivy scan
+    trivy image --severity HIGH,CRITICAL --no-progress -f json -o trivy-report.json $(imageName):$(buildNumber)
+
+    # Check if vulnerabilities are found
+    if grep -q '"Severity": "HIGH"\|"Severity": "CRITICAL"' trivy-report.json; then
+      echo "High or Critical vulnerabilities found, failing the pipeline."
+      cat trivy-report.json > trivy-report.txt
+      # Send email (replace placeholders with actual DLL and email server details)
+      mail -s "Trivy Scan Report: Critical Vulnerabilities Found" $(dllEmail) < trivy-report.txt
+      exit 1
+    fi
+  displayName: 'Trivy Vulnerability Scan'
+
+# 6. Push Image to ACR (only if Trivy passes)
+- task: Docker@2
+  inputs:
+    containerRegistry: '$(dockerRegistryServiceConnection)'
+    repository: '$(imageName)'
+    command: 'push'
+    tags: $(buildNumber)  # Using the build number as tag
+  displayName: 'Push Image to ACR'
+  condition: succeeded()
+
+# 7. Update Manifest File & Deploy to AKS
+- script: |
+    sed -i 's|<old_value>|<new_value>|g' k8s/deployment.yaml
+    kubectl apply -f k8s/deployment.yaml
+  displayName: 'Update Manifest & Deploy to AKS'
+
+# 8. AKS Secrets from Key Vault
+- task: AzureKeyVault@2
+  inputs:
+    connectedServiceName: 'AzureServiceConnection'
+    keyVaultName: '$(keyVaultName)'
+    secretsFilter: 'secret-name'
+  displayName: 'Retrieve Secrets from Azure Key Vault'
+
+# 9. Deploy to AKS
+- task: Kubernetes@1
+  inputs:
+    connectionType: 'Azure Kubernetes Service'
+    kubernetesCluster: '$(aksCluster)'
+    namespace: '$(namespace)'
+    command: 'apply'
+    arguments: '-f k8s/deployment.yaml'
+  displayName: 'Deploy to AKS'
