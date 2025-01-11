@@ -64,8 +64,11 @@ Update Kubernetes deployment manifests with the new Docker image tag to ensure t
 Deploy Stage:
 Deploy the updated Docker image to Azure Kubernetes Service (AKS), using secrets from Azure Key Vault for configuration.
 
+https://github.com/devopsandlearn/ABB/blob/master/k8s-specifications/worker-deployment.yaml
 
 Here in this image it is shown that that docker image is built and pushed onto ACR 
+Dockerfile https://github.com/devopsandlearn/ABB/blob/master/worker/Dockerfile
+
 ![image](https://github.com/user-attachments/assets/a18623d0-67bf-4e11-96c8-111de0ec21b8)
 
 Debugging: If pipeline fails due to some reason first check the logs, and if something fro m the env variable session is missing or incorrect, then do the correction accordingly. 
@@ -127,6 +130,8 @@ kubectl exec <pod-name> -n <namespace> -- curl http://external-service-url
 The command returned a successful response, confirming that the pod was now able to reach the external service.
 
 
+
+****
 
 
 
