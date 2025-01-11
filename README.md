@@ -129,9 +129,23 @@ After applying the fix, connectivity was verified by executing a curl command wi
 kubectl exec <pod-name> -n <namespace> -- curl http://external-service-url
 The command returned a successful response, confirming that the pod was now able to reach the external service.
 
+**Task 9: Package the Kubernetes deployment into a Helm chart and deploy it. Include parameters for customization (replicas, image tags)**
+
+https://github.com/devopsandlearn/ABB/blob/master/Tasks/TASK-9
 
 
-****
+
+**TASK 11 and 12**
+We have used Prometheus and grafana for metrics and monitering. 
+Promql query for CPU usage in the last 5 min 
+(sum(rate(container_cpu_usage_seconds_total{job="kubelet", cluster="", container!="", pod!="", namespace=~".*"}[5m])) by (namespace, pod) > 0.9
+
+For memory usage if more than 500MB
+sum(container_memory_usage_bytes{job="kubelet", cluster="", container!="", pod!="", namespace=~".*"}) by (namespace, pod) > 500000000
+
+
+
+
 
 
 
