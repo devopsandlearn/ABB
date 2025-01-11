@@ -22,5 +22,10 @@ once the rewiewer approves we can merge the code to the base branch
 ![image](https://github.com/user-attachments/assets/ff97209f-5b7a-4c30-885b-4c598fce7481)
 
 
+TASK 2&3:  CI CD Pipelines: 
+
+Here the demo work flow is done on a sample e-commerce application, where in the CI stage 
+
+
 
 
